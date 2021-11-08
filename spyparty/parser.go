@@ -5,11 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math/bits"
-	"os"
 	"time"
-
-	"github.com/rs/zerolog/log"
 )
 
 const BytesToRead = 512 // we only need the first 512 bytes
@@ -17,11 +15,16 @@ const BytesToRead = 512 // we only need the first 512 bytes
 type Result byte
 
 var (
-	MissionWin   = 0
-	SpyTimeout   = 1
-	SpyShot      = 2
-	CivilianShot = 3
-	InProgress   = 4
+	MissionWin   = Result(0)
+	SpyTimeout   = Result(1)
+	SpyShot      = Result(2)
+	CivilianShot = Result(3)
+	InProgress   = Result(4)
+)
+
+var (
+	Spy    = "spy"
+	Sniper = "sniper"
 )
 
 var (
@@ -46,23 +49,14 @@ type Replay struct {
 	MissionsCompleted int
 }
 
-func readBytes(filename string) ([]byte, error) {
-	stream, err := os.Open(filename)
-	if err != nil {
-		log.Warn().Err(err).Str("filename", filename).Msg("could not open file")
-		return nil, err
-	}
-	defer stream.Close()
-
+func readBytes(source io.Reader) ([]byte, error) {
 	buf := make([]byte, BytesToRead)
-	bytesRead, err := stream.Read(buf)
+	bytesRead, err := source.Read(buf)
 	if err != nil {
-		log.Warn().Err(err).Str("filename", filename).Msg("could not read file")
 		return nil, err
 	}
 
 	if bytesRead != BytesToRead {
-		log.Warn().Str("filename", filename).Msg("could not read enough bytes")
 		return nil, err
 	}
 
@@ -97,8 +91,12 @@ func parseLoadout(encodedLoadout uint32) string {
 	}
 }
 
-func ParseReplayFile(filename string) (*Replay, error) {
-	header, err := readBytes(filename)
+func SupportedVersions() []int {
+	return []int{6}
+}
+
+func ParseReplayFile(source io.Reader) (*Replay, error) {
+	header, err := readBytes(source)
 	if err != nil {
 		return nil, ErrFile
 	}
@@ -162,4 +160,14 @@ func ParseReplayFile(filename string) (*Replay, error) {
 	ret.MissionsCompleted = bits.OnesCount32(binary.LittleEndian.Uint32(header[offsets.missionsCompleted : offsets.missionsCompleted+4]))
 
 	return ret, nil
+}
+
+func (r *Replay) WinnerRole() string {
+	if r.Result == MissionWin || r.Result == CivilianShot {
+		return Spy
+	} else if r.Result == SpyShot || r.Result == SpyTimeout {
+		return Sniper
+	} else {
+		return ""
+	}
 }
