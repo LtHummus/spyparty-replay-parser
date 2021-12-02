@@ -32,21 +32,22 @@ var (
 	ErrNotSpyPartyReplay = errors.New("not a SpyParty replay")
 	ErrUnknownVersion    = errors.New("unknown SpyParty replay file version")
 	ErrParseError        = errors.New("unable to parse replay data")
+	ErrUnknownVenue      = errors.New("unknown venue hash")
 )
 
 type Replay struct {
-	Spy               string
-	Sniper            string
-	StartTime         time.Time
-	Result            Result
-	Loadout           string
-	Venue             string
-	SequenceNumber    int
-	UUID              string
-	Version           int
-	StartDuration     int
-	NumGuests         int
-	MissionsCompleted int
+	Spy               string    `json:"spy"`
+	Sniper            string    `json:"sniper"`
+	StartTime         time.Time `json:"start_time"`
+	Result            Result    `json:"result"`
+	Loadout           string    `json:"loadout"`
+	Venue             string    `json:"venue"`
+	SequenceNumber    int       `json:"sequence_number"`
+	UUID              string    `json:"uuid"`
+	Version           int       `json:"version"`
+	StartDuration     int       `json:"start_duration,omitempty"`
+	NumGuests         int       `json:"num_guests,omitempty"`
+	MissionsCompleted int       `json:"missions_completed"`
 }
 
 func readBytes(source io.Reader) ([]byte, error) {
@@ -125,7 +126,13 @@ func ParseReplayFile(source io.Reader) (*Replay, error) {
 		return nil, ErrParseError
 	}
 	ret.Loadout = loadout
-	ret.Venue = fmt.Sprintf("%x", binary.LittleEndian.Uint32(header[offsets.venueHashOffset:offsets.venueHashOffset+4]))
+	venueHash := binary.LittleEndian.Uint32(header[offsets.venueHashOffset : offsets.venueHashOffset+4])
+	venue := Venues[venueHash]
+	if venue == "" {
+		return ret, ErrUnknownVenue
+	} else {
+		ret.Venue = venue
+	}
 	ret.UUID = base64.RawURLEncoding.EncodeToString(header[offsets.uuid : offsets.uuid+16])
 	ret.SequenceNumber = int(binary.LittleEndian.Uint16(header[offsets.sequenceNumber : offsets.sequenceNumber+2]))
 
