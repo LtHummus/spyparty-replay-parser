@@ -178,3 +178,13 @@ func (r *Replay) WinnerRole() string {
 		return ""
 	}
 }
+
+func (r *Replay) WinnerName() string {
+	if r.WinnerRole() == Spy {
+		return r.Spy
+	} else if r.WinnerRole() == Sniper {
+		return r.Sniper
+	} else {
+		return ""
+	}
+}
